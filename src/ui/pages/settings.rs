@@ -104,7 +104,8 @@ impl SettingsPage {
         repeat_row.set_title("Mode pengulangan");
         repeat_row.set_subtitle("Ulangi semua atau satu lagu");
 
-        let repeat_combo = gtk::DropDown::from_strings(&["Tidak ada", "Ulangi semua", "Ulangi satu"]);
+        let repeat_combo =
+            gtk::DropDown::from_strings(&["Tidak ada", "Ulangi semua", "Ulangi satu"]);
         repeat_combo.set_valign(gtk::Align::Center);
         repeat_row.add_suffix(&repeat_combo);
         repeat_row.set_activatable_widget(Some(&repeat_combo));

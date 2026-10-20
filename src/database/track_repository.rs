@@ -81,7 +81,10 @@ impl TrackSort {
 
     /// Whether the primary column holds text and needs case-insensitive sorting.
     fn is_textual(self) -> bool {
-        matches!(self, TrackSort::Title | TrackSort::Artist | TrackSort::Album)
+        matches!(
+            self,
+            TrackSort::Title | TrackSort::Artist | TrackSort::Album
+        )
     }
 }
 
@@ -138,7 +141,12 @@ impl<'a> TrackRepository<'a> {
         let mut sql = format!("SELECT {TRACK_COLUMNS} FROM tracks WHERE 1 = 1");
         let mut args: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-        if let Some(search) = filter.search.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        if let Some(search) = filter
+            .search
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+        {
             let pattern = format!("%{}%", search.to_lowercase());
             sql.push_str(
                 " AND (LOWER(title) LIKE ?1 OR LOWER(artist) LIKE ?1 OR LOWER(album) LIKE ?1 \
@@ -169,7 +177,11 @@ impl<'a> TrackRepository<'a> {
 
         // Arah pengurutan hanya berlaku pada kolom utama; kolom pendamping
         // selalu menaik agar album dan track number tetap logis.
-        let collation = if sort.is_textual() { "COLLATE NOCASE" } else { "" };
+        let collation = if sort.is_textual() {
+            "COLLATE NOCASE"
+        } else {
+            ""
+        };
         let direction = direction.sql();
         sql.push_str(&format!(
             " ORDER BY {} {collation} {direction}, {}",
@@ -207,15 +219,12 @@ impl<'a> TrackRepository<'a> {
             return Ok(Vec::new());
         }
 
-        let placeholders = ids
-            .iter()
-            .map(|_| "?")
-            .collect::<Vec<_>>()
-            .join(", ");
+        let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
         let sql = format!("SELECT {TRACK_COLUMNS} FROM tracks WHERE id IN ({placeholders})");
 
         let mut stmt = self.conn.prepare(&sql)?;
-        let refs: Vec<&dyn rusqlite::ToSql> = ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+        let refs: Vec<&dyn rusqlite::ToSql> =
+            ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
         let rows = stmt.query_map(refs.as_slice(), row_to_track)?;
 
         let mut found: Vec<Track> = Vec::new();

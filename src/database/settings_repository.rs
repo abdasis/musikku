@@ -48,7 +48,10 @@ impl<'a> SettingsRepository<'a> {
 
     /// Baca nilai preferensi sebagai bilangan pecahan.
     pub fn get_f64(&self, key: &str, default: f64) -> rusqlite::Result<f64> {
-        Ok(self.get(key)?.and_then(|v| v.parse().ok()).unwrap_or(default))
+        Ok(self
+            .get(key)?
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default))
     }
 
     /// Simpan nilai preferensi sebagai bilangan pecahan.

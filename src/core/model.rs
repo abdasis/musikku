@@ -24,7 +24,6 @@ impl ScanStatus {
             ScanStatus::Unreadable => "unreadable",
         }
     }
-
 }
 
 impl FromStr for ScanStatus {

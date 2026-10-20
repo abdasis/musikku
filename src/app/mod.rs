@@ -109,6 +109,9 @@ impl MusikKuApp {
         window.window().present();
         window.refresh_all();
 
+        // Dialog memakai jendela utama sebagai induk.
+        state.set_main_window(window.window().clone());
+
         // Perbarui state saat playback berubah.
         self.connect_playback_events(&state);
 
@@ -148,7 +151,8 @@ impl MusikKuApp {
                 }
             };
 
-            let server = runtime.block_on(async { crate::mpris::MprisServer::new(controller).await });
+            let server =
+                runtime.block_on(async { crate::mpris::MprisServer::new(controller).await });
 
             let Some(_server) = server else {
                 log::info!("MPRIS tidak tersedia (D-Bus tidak berjalan)");
@@ -202,6 +206,13 @@ impl MusikKuApp {
                 app.start_scan(&state);
             }
 
+            // Permintaan muat ulang daftar playlist.
+            if state.poll_playlist_refresh() {
+                if let Some(window) = window_slot.borrow().as_ref() {
+                    window.refresh_playlists();
+                }
+            }
+
             let borrowed = window_slot.borrow();
             if let Some(window) = borrowed.as_ref() {
                 window.refresh_position();
@@ -251,7 +262,9 @@ impl MusikKuApp {
 
         // Bangun antrean dari track yang masih ada di library.
         let track_repo = TrackRepository::new(state.database.connection());
-        let tracks = track_repo.find_by_ids(&saved.queue_order).unwrap_or_default();
+        let tracks = track_repo
+            .find_by_ids(&saved.queue_order)
+            .unwrap_or_default();
         if tracks.is_empty() {
             return;
         }
@@ -353,7 +366,9 @@ impl MusikKuApp {
                         let message = if cancelled {
                             format!("Pemindaian dibatalkan. {added} lagu ditambahkan.")
                         } else if failed > 0 {
-                            format!("{added} lagu ditambahkan, {failed} berkas bermasalah dilewati.")
+                            format!(
+                                "{added} lagu ditambahkan, {failed} berkas bermasalah dilewati."
+                            )
                         } else {
                             format!("{added} lagu ditambahkan.")
                         };

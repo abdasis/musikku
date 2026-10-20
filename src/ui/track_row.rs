@@ -146,6 +146,11 @@ impl TrackRow {
 
     /// Id track, dipakai untuk mencari track terpilih.
     pub fn track_id(&self) -> i64 {
-        self.imp().track.borrow().as_ref().map(|t| t.id).unwrap_or(0)
+        self.imp()
+            .track
+            .borrow()
+            .as_ref()
+            .map(|t| t.id)
+            .unwrap_or(0)
     }
 }

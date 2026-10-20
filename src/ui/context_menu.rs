@@ -9,11 +9,16 @@ use crate::app::state::AppState;
 use crate::core::model::Track;
 use crate::database::PlaylistRepository;
 
-/// Tampilkan menu konteks untuk sebuah track.
+/// Tampilkan menu konteks untuk sekumpulan track terpilih.
 ///
-/// Menu dibangun dari tombol biasa agar perilakunya konsisten di semua
-/// desktop dan mudah diakses keyboard.
-pub fn show_track_menu(state: &Rc<AppState>, track: &Track, popover: &gtk::Popover) {
+/// Bila lebih dari satu track dipilih, aksi berlaku untuk seluruh
+///選 selected. Menu dibangun dari tombol biasa agar perilakunya konsisten
+/// di semua desktop dan mudah diakses keyboard.
+pub fn show_track_menu(state: &Rc<AppState>, tracks: &[Track], popover: &gtk::Popover) {
+    let Some(first) = tracks.first() else {
+        return;
+    };
+    let track = first.clone();
     let menu_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
     menu_box.set_margin_top(6);
     menu_box.set_margin_bottom(6);
@@ -23,12 +28,20 @@ pub fn show_track_menu(state: &Rc<AppState>, track: &Track, popover: &gtk::Popov
     // ---- Putar dan antrean ----
     {
         let state = Rc::clone(state);
-        let track = track.clone();
-        let button = menu_button("Putar");
+        let button = menu_button(if tracks.len() > 1 {
+            "Putar Semua"
+        } else {
+            "Putar"
+        });
         let popover = popover.clone();
+        let tracks = tracks.to_vec();
         button.connect_clicked(move |_| {
-            state.playback.play_single(&track);
-            state.mark_played(track.id);
+            if tracks.len() == 1 {
+                state.playback.play_single(&tracks[0]);
+                state.mark_played(tracks[0].id);
+            } else {
+                state.playback.play_tracks(&tracks, 0);
+            }
             popover.popdown();
         });
         menu_box.append(&button);
@@ -36,12 +49,12 @@ pub fn show_track_menu(state: &Rc<AppState>, track: &Track, popover: &gtk::Popov
 
     {
         let state = Rc::clone(state);
-        let track = track.clone();
         let button = menu_button("Tambahkan ke Antrean");
         let popover = popover.clone();
+        let tracks = tracks.to_vec();
         button.connect_clicked(move |_| {
-            state.playback.enqueue(&track);
-            state.set_status_message(format!("{} ditambahkan ke antrean.", track.display_title()));
+            state.playback.enqueue_many(&tracks);
+            state.set_status_message(format!("{} lagu ditambahkan ke antrean.", tracks.len()));
             popover.popdown();
         });
         menu_box.append(&button);
@@ -60,10 +73,10 @@ pub fn show_track_menu(state: &Rc<AppState>, track: &Track, popover: &gtk::Popov
 
         for playlist in &playlists {
             let state = Rc::clone(state);
-            let track = track.clone();
             let name = playlist.clone();
             let button = menu_button(&format!("Tambahkan ke \"{name}\""));
             let popover = popover.clone();
+            let tracks = tracks.to_vec();
             button.connect_clicked(move |_| {
                 let repo = PlaylistRepository::new(state.database.connection());
                 // Playlist dicari ulang berdasarkan nama karena id tidak
@@ -76,20 +89,15 @@ pub fn show_track_menu(state: &Rc<AppState>, track: &Track, popover: &gtk::Popov
                 else {
                     return;
                 };
-                match repo.add_track(playlist.id, track.id) {
-                    Ok(()) => {
-                        state.refresh_library();
-                        state.set_status_message(format!(
-                            "{} ditambahkan ke playlist {}.",
-                            track.display_title(),
-                            name
-                        ));
-                    }
-                    Err(err) => {
-                        log::error!("Gagal menambah track ke playlist: {err}");
-                        state.set_status_message("Gagal menambahkan lagu ke playlist.");
+
+                let mut added = 0;
+                for track in &tracks {
+                    if repo.add_track(playlist.id, track.id).is_ok() {
+                        added += 1;
                     }
                 }
+                state.refresh_library();
+                state.set_status_message(format!("{added} lagu ditambahkan ke playlist {}.", name));
                 popover.popdown();
             });
             menu_box.append(&button);
@@ -102,20 +110,24 @@ pub fn show_track_menu(state: &Rc<AppState>, track: &Track, popover: &gtk::Popov
     {
         let state = Rc::clone(state);
         let track = track.clone();
-        let label = if track.is_favorite {
+        let removing = track.is_favorite;
+        let label = if removing {
             "Hapus dari Favorit"
         } else {
             "Tandai sebagai Favorit"
         };
         let button = menu_button(label);
         let popover = popover.clone();
+        let tracks = tracks.to_vec();
         button.connect_clicked(move |_| {
-            state.set_favorite(track.id, !track.is_favorite);
+            for track in &tracks {
+                state.set_favorite(track.id, !removing);
+            }
             state.refresh_library();
-            state.set_status_message(if track.is_favorite {
-                format!("{} dihapus dari favorit.", track.display_title())
+            state.set_status_message(if removing {
+                format!("{} lagu dihapus dari favorit.", tracks.len())
             } else {
-                format!("{} ditandai sebagai favorit.", track.display_title())
+                format!("{} lagu ditandai sebagai favorit.", tracks.len())
             });
             popover.popdown();
         });
@@ -135,26 +147,23 @@ pub fn show_track_menu(state: &Rc<AppState>, track: &Track, popover: &gtk::Popov
 
     {
         let state = Rc::clone(state);
-        let track = track.clone();
         let button = menu_button("Hapus dari Library");
         let popover = popover.clone();
+        let tracks = tracks.to_vec();
         button.connect_clicked(move |_| {
             // Menghapus track hanya menghapus baris database; berkas tetap ada.
             let repo = crate::database::TrackRepository::new(state.database.connection());
-            match repo.remove(track.id) {
-                Ok(()) => {
+            let mut removed = 0;
+            for track in &tracks {
+                if repo.remove(track.id).is_ok() {
                     state.playback.remove_from_queue(track.id);
-                    state.refresh_library();
-                    state.set_status_message(format!(
-                        "{} dihapus dari library. Berkas tetap tersimpan.",
-                        track.display_title()
-                    ));
-                }
-                Err(err) => {
-                    log::error!("Gagal menghapus track: {err}");
-                    state.set_status_message("Gagal menghapus lagu dari library.");
+                    removed += 1;
                 }
             }
+            state.refresh_library();
+            state.set_status_message(format!(
+                "{removed} lagu dihapus dari library. Berkas tetap tersimpan."
+            ));
             popover.popdown();
         });
         menu_box.append(&button);

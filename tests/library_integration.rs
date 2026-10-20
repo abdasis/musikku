@@ -5,8 +5,8 @@
 
 use musikku::core::model::{RepeatMode, Track};
 use musikku::database::{
-    Database, PlaylistRepository, SettingsRepository, TrackFilter, TrackRepository, TrackSort,
-    SortDirection,
+    Database, PlaylistRepository, SettingsRepository, SortDirection, TrackFilter, TrackRepository,
+    TrackSort,
 };
 
 /// Bangun track uji tanpa perlu berkas di disk.
@@ -50,7 +50,10 @@ fn track_upsert_creates_then_updates_the_same_row() {
     assert_eq!(id, id_after, "path yang sama harus memakai baris yang sama");
     assert_eq!(repo.count().expect("hitung gagal"), 1);
 
-    let stored = repo.find_by_id(id).expect("pencarian gagal").expect("track harus ada");
+    let stored = repo
+        .find_by_id(id)
+        .expect("pencarian gagal")
+        .expect("track harus ada");
     assert_eq!(stored.title, "Judul Baru");
 }
 
@@ -65,7 +68,11 @@ fn query_sorts_by_title_case_insensitively() {
     }
 
     let tracks = repo
-        .query(&TrackFilter::default(), TrackSort::Title, SortDirection::Ascending)
+        .query(
+            &TrackFilter::default(),
+            TrackSort::Title,
+            SortDirection::Ascending,
+        )
         .expect("query gagal");
 
     let titles: Vec<&str> = tracks.iter().map(|t| t.title.as_str()).collect();
@@ -77,8 +84,13 @@ fn query_filters_by_search_term_across_fields() {
     let db = Database::open_in_memory().expect("database harus terbuka");
     let repo = TrackRepository::new(db.connection());
 
-    repo.upsert(&sample_track(0, "Bintang Laut", "Artis Satu", "Album Alpha"))
-        .expect("penyimpanan gagal");
+    repo.upsert(&sample_track(
+        0,
+        "Bintang Laut",
+        "Artis Satu",
+        "Album Alpha",
+    ))
+    .expect("penyimpanan gagal");
     repo.upsert(&sample_track(1, "Lain", "Artis Dua", "Album Beta"))
         .expect("penyimpanan gagal");
 
@@ -104,7 +116,10 @@ fn favorite_flag_survives_a_reload() {
         .expect("penyimpanan gagal");
     repo.set_favorite(id, true).expect("ubah favorit gagal");
 
-    let stored = repo.find_by_id(id).expect("pencarian gagal").expect("track harus ada");
+    let stored = repo
+        .find_by_id(id)
+        .expect("pencarian gagal")
+        .expect("track harus ada");
     assert!(stored.is_favorite);
 
     let filter = TrackFilter {
@@ -129,7 +144,10 @@ fn marking_played_increments_the_counter() {
     repo.mark_played(id).expect("tandai diputar gagal");
     repo.mark_played(id).expect("tandai diputar gagal");
 
-    let stored = repo.find_by_id(id).expect("pencarian gagal").expect("track harus ada");
+    let stored = repo
+        .find_by_id(id)
+        .expect("pencarian gagal")
+        .expect("track harus ada");
     assert_eq!(stored.play_count, 2);
     assert!(stored.last_played_at.is_some());
 }
@@ -163,15 +181,22 @@ fn playlist_keeps_the_order_of_its_tracks() {
         ids.push(id);
     }
 
-    let playlist_id = playlist_repo.create("Test Playlist").expect("buat playlist gagal");
+    let playlist_id = playlist_repo
+        .create("Test Playlist")
+        .expect("buat playlist gagal");
     for id in &ids {
         playlist_repo
             .add_track(playlist_id, *id)
             .expect("tambah track gagal");
     }
 
-    let stored = playlist_repo.track_ids(playlist_id).expect("ambil track gagal");
-    assert_eq!(stored, ids, "urutan playlist harus sesuai urutan penambahan");
+    let stored = playlist_repo
+        .track_ids(playlist_id)
+        .expect("ambil track gagal");
+    assert_eq!(
+        stored, ids,
+        "urutan playlist harus sesuai urutan penambahan"
+    );
 
     let playlists = playlist_repo.list().expect("daftar playlist gagal");
     assert_eq!(playlists.len(), 1);
@@ -204,7 +229,9 @@ fn reordering_a_playlist_changes_the_track_order() {
         .reorder(playlist_id, &reordered)
         .expect("urut ulang gagal");
 
-    let stored = playlist_repo.track_ids(playlist_id).expect("ambil track gagal");
+    let stored = playlist_repo
+        .track_ids(playlist_id)
+        .expect("ambil track gagal");
     assert_eq!(stored, reordered);
 }
 
@@ -233,7 +260,9 @@ fn removing_a_track_from_a_playlist_closes_the_gap() {
         .remove_track(playlist_id, ids[1])
         .expect("hapus track gagal");
 
-    let stored = playlist_repo.track_ids(playlist_id).expect("ambil track gagal");
+    let stored = playlist_repo
+        .track_ids(playlist_id)
+        .expect("ambil track gagal");
     assert_eq!(stored, vec![ids[0], ids[2]]);
 
     let playlists = playlist_repo.list().expect("daftar playlist gagal");
@@ -250,13 +279,20 @@ fn deleting_a_playlist_keeps_the_tracks() {
         .upsert(&sample_track(0, "Bertahan", "Artis", "Album"))
         .expect("penyimpanan gagal");
 
-    let playlist_id = playlist_repo.create("Sementara").expect("buat playlist gagal");
+    let playlist_id = playlist_repo
+        .create("Sementara")
+        .expect("buat playlist gagal");
     playlist_repo
         .add_track(playlist_id, track_id)
         .expect("tambah track gagal");
-    playlist_repo.remove(playlist_id).expect("hapus playlist gagal");
+    playlist_repo
+        .remove(playlist_id)
+        .expect("hapus playlist gagal");
 
-    assert!(playlist_repo.list().expect("daftar playlist gagal").is_empty());
+    assert!(playlist_repo
+        .list()
+        .expect("daftar playlist gagal")
+        .is_empty());
     assert_eq!(
         track_repo.count().expect("hitung gagal"),
         1,
@@ -269,13 +305,19 @@ fn settings_round_trip_through_the_database() {
     let db = Database::open_in_memory().expect("database harus terbuka");
     let repo = SettingsRepository::new(db.connection());
 
-    repo.set_bool("scan_on_startup", true).expect("simpan bool gagal");
+    repo.set_bool("scan_on_startup", true)
+        .expect("simpan bool gagal");
     repo.set_f64("volume", 0.42).expect("simpan float gagal");
     repo.set("theme", "dark").expect("simpan teks gagal");
 
-    assert!(repo.get_bool("scan_on_startup", false).expect("baca bool gagal"));
+    assert!(repo
+        .get_bool("scan_on_startup", false)
+        .expect("baca bool gagal"));
     assert_eq!(repo.get_f64("volume", 0.0).expect("baca float gagal"), 0.42);
-    assert_eq!(repo.get("theme").expect("baca teks gagal"), Some("dark".to_string()));
+    assert_eq!(
+        repo.get("theme").expect("baca teks gagal"),
+        Some("dark".to_string())
+    );
 }
 
 #[test]
@@ -284,7 +326,10 @@ fn unknown_settings_fall_back_to_defaults() {
     let repo = SettingsRepository::new(db.connection());
 
     assert!(!repo.get_bool("tidak_ada", false).expect("baca bool gagal"));
-    assert_eq!(repo.get_f64("tidak_ada", 0.8).expect("baca float gagal"), 0.8);
+    assert_eq!(
+        repo.get_f64("tidak_ada", 0.8).expect("baca float gagal"),
+        0.8
+    );
     assert!(repo.get("tidak_ada").expect("baca teks gagal").is_none());
 }
 
@@ -310,7 +355,8 @@ fn playback_state_survives_a_reload() {
     };
 
     repo.save_state(&state).expect("simpan state gagal");
-    repo.save_queue(&state.queue_order).expect("simpan antrean gagal");
+    repo.save_queue(&state.queue_order)
+        .expect("simpan antrean gagal");
 
     let loaded = repo.load_state().expect("baca state gagal");
     assert_eq!(loaded.current_track_id, Some(track_id));
@@ -320,6 +366,36 @@ fn playback_state_survives_a_reload() {
     assert!(loaded.shuffle_enabled);
     assert_eq!(loaded.repeat_mode, RepeatMode::One);
     assert_eq!(loaded.queue_order, vec![track_id]);
+}
+
+#[test]
+fn renaming_a_playlist_keeps_its_tracks() {
+    let db = Database::open_in_memory().expect("database harus terbuka");
+    let track_repo = TrackRepository::new(db.connection());
+    let playlist_repo = PlaylistRepository::new(db.connection());
+
+    let track_id = track_repo
+        .upsert(&sample_track(0, "Tetap", "Artis", "Album"))
+        .expect("penyimpanan gagal");
+
+    let playlist_id = playlist_repo
+        .create("Nama Lama")
+        .expect("buat playlist gagal");
+    playlist_repo
+        .add_track(playlist_id, track_id)
+        .expect("tambah track gagal");
+
+    playlist_repo
+        .rename(playlist_id, "Nama Baru")
+        .expect("ganti nama gagal");
+
+    let playlists = playlist_repo.list().expect("daftar playlist gagal");
+    assert_eq!(playlists.len(), 1);
+    assert_eq!(playlists[0].name, "Nama Baru");
+    assert_eq!(
+        playlists[0].track_count, 1,
+        "track playlist harus tetap ada"
+    );
 }
 
 #[test]

@@ -113,12 +113,16 @@ impl HomePage {
     fn connect_signals(&self) {
         let state = Rc::clone(&self.state);
 
-        if let Some(button) = self.empty_page
+        if let Some(button) = self
+            .empty_page
             .child()
-            .and_then(|c| c.downcast::<gtk::Button>().ok()) { button.connect_clicked(move |_| {
-                    state.set_status_message("Pilih folder musik untuk dipindai.");
-                    state.navigate_to(crate::app::state::Page::Library);
-                }); }
+            .and_then(|c| c.downcast::<gtk::Button>().ok())
+        {
+            button.connect_clicked(move |_| {
+                state.set_status_message("Pilih folder musik untuk dipindai.");
+                state.navigate_to(crate::app::state::Page::Library);
+            });
+        }
     }
 
     /// Muat ulang isi halaman.
@@ -172,11 +176,7 @@ impl HomePage {
             let key = format!("{}\u{1}{}", track.display_album(), track.display_artist());
             match albums.iter_mut().find(|(album, _artist, _)| *album == key) {
                 Some(entry) => entry.2 += 1,
-                None => albums.push((
-                    key,
-                    track.display_album().to_string(),
-                    1,
-                )),
+                None => albums.push((key, track.display_album().to_string(), 1)),
             }
         }
 

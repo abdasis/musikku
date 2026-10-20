@@ -6,7 +6,6 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-
 use crate::core::model::Track;
 
 /// Callback yang dipanggil saat terjadi error pemutaran.

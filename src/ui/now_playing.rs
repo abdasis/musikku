@@ -2,6 +2,7 @@
 
 use std::rc::Rc;
 
+use gtk::gdk;
 use gtk::gio;
 use gtk::prelude::*;
 
@@ -92,7 +93,8 @@ impl NowPlayingPanel {
         let position_label = gtk::Label::new(Some("0:00"));
         position_label.add_css_class("player-time");
 
-        let position_scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 1000.0, 10.0);
+        let position_scale =
+            gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 1000.0, 10.0);
         position_scale.set_hexpand(true);
         position_scale.set_draw_value(false);
 
@@ -162,7 +164,8 @@ impl NowPlayingPanel {
         clear_queue_button.set_label("Bersihkan");
         clear_queue_button.add_css_class("flat");
         clear_queue_button.set_tooltip_text(Some("Kosongkan antrean"));
-        clear_queue_button.update_property(&[gtk::accessible::Property::Label("Kosongkan antrean")]);
+        clear_queue_button
+            .update_property(&[gtk::accessible::Property::Label("Kosongkan antrean")]);
         queue_header.append(&clear_queue_button);
 
         widget.append(&queue_header);
@@ -198,8 +201,10 @@ impl NowPlayingPanel {
             action.connect_activate(move |_, _| {
                 if let Some(track) = state_for_queue.playback.current_track() {
                     state_for_queue.playback.enqueue(&track);
-                    state_for_queue
-                        .set_status_message(format!("{} ditambahkan ke antrean.", track.display_title()));
+                    state_for_queue.set_status_message(format!(
+                        "{} ditambahkan ke antrean.",
+                        track.display_title()
+                    ));
                 }
             });
             group.add_action(&action);
@@ -236,6 +241,7 @@ impl NowPlayingPanel {
         };
 
         panel.connect_signals();
+        panel.connect_queue_drop();
         panel
     }
 
@@ -360,6 +366,70 @@ impl NowPlayingPanel {
         self.seeking.set(seeking);
     }
 
+    /// Hubungkan penanganan seretan pada daftar antrean.
+    fn connect_queue_drop(&self) {
+        let state = Rc::clone(&self.state);
+        let queue_list = self.queue_list.clone();
+
+        let drop_target = gtk::DropTarget::new(glib::Type::I64, gdk::DragAction::MOVE);
+        drop_target.connect_drop(move |_target, value, _x, y| {
+            let Some(source_id) = value.get::<i64>().ok() else {
+                return false;
+            };
+
+            // Tentukan posisi tujuan dari titik jatuh di dalam daftar.
+            let Some(target_index) = Self::row_at_position(&queue_list, y) else {
+                return false;
+            };
+
+            let queue = state.playback.queue();
+            let order = queue.order().to_vec();
+
+            let Some(source_index) = order.iter().position(|id| *id == source_id) else {
+                return false;
+            };
+
+            // Baris tujuanees dipindahkan ke posisi sumber bila diletakkan
+            // setelahnya, agar urutan hasil akhir tetap sesuai团队的.
+            let mut target_index = target_index;
+            if source_index < target_index {
+                target_index -= 1;
+            }
+            if target_index == source_index {
+                return true;
+            }
+
+            state.playback.reorder_queue(source_index, target_index);
+            state.set_status_message("Urutan antrean diubah.");
+            true
+        });
+
+        self.queue_list.add_controller(drop_target);
+    }
+
+    /// Cari indeks baris daftar yang berada di titik tertentu.
+    ///
+    /// Koordinat drop bersifat relatif terhadap daftar, sehingga posisi
+    /// tiap baris dihitung dari tinggi baris sebelumnya.
+    fn row_at_position(list: &gtk::ListBox, y: f64) -> Option<usize> {
+        let mut child = list.first_child();
+        let mut index = 0;
+        let mut offset = 0.0;
+
+        while let Some(row) = child {
+            let height = row.height() as f64;
+            if y < offset + height {
+                return Some(index);
+            }
+            offset += height;
+            index += 1;
+            child = row.next_sibling();
+        }
+
+        // Jatuh di luar baris mana pun: pakai baris terakhir.
+        (index > 0).then_some(index - 1)
+    }
+
     /// Bangun ulang daftar antrean.
     pub fn refresh_queue(&self) {
         while let Some(child) = self.queue_list.first_child() {
@@ -424,6 +494,14 @@ impl NowPlayingPanel {
             if current_index == Some(index) {
                 row.add_css_class("queue-active");
             }
+
+            // Seret baris untuk mengubah urutan antrean. Id track
+            // dibawa sebagai data seret; GTK menangani memulai seretan
+            // beserta perangkat dan koordinatnya.
+            let drag = gtk::DragSource::new();
+            drag.set_actions(gdk::DragAction::MOVE);
+            drag.set_content(Some(&gdk::ContentProvider::for_value(&track.id.to_value())));
+            row.add_controller(drag);
 
             let state = Rc::clone(&self.state);
             let track_for_click = track.clone();

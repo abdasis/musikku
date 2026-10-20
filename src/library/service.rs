@@ -5,8 +5,8 @@
 //! Database tetap dipakai dari satu thread saja.
 
 use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::rc::Rc;
+use std::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::core::model::{LibraryFolder, Track};
 use crate::database::{Database, FolderRepository, TrackRepository};
@@ -169,7 +169,10 @@ impl LibraryService {
             });
         });
 
-        ScanHandle { control, events: rx }
+        ScanHandle {
+            control,
+            events: rx,
+        }
     }
 
     /// Catat waktu pemindaian terakhir untuk folder yang aktif.

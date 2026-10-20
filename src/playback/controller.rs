@@ -364,7 +364,11 @@ impl PlaybackController {
 
     /// Acak urutan track, tetapi tetap menempatkan `start_id` di posisi pertama.
     fn shuffled_tracks(&self, tracks: &[Track], start_id: i64) -> Vec<Track> {
-        let mut others: Vec<Track> = tracks.iter().filter(|t| t.id != start_id).cloned().collect();
+        let mut others: Vec<Track> = tracks
+            .iter()
+            .filter(|t| t.id != start_id)
+            .cloned()
+            .collect();
         self.reseed();
 
         // Generator linear congruential sederhana, cukup untuk pengacakan antrean.

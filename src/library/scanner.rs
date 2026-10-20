@@ -12,8 +12,8 @@ use crate::core::model::{ScanStatus, Track};
 
 /// Ekstensi berkas audio yang dipindai.
 pub const AUDIO_EXTENSIONS: &[&str] = &[
-    "mp3", "flac", "wav", "ogg", "oga", "opus", "m4a", "aac", "wma", "aiff", "aif", "ape",
-    "mpc", "wv", "opus",
+    "mp3", "flac", "wav", "ogg", "oga", "opus", "m4a", "aac", "wma", "aiff", "aif", "ape", "mpc",
+    "wv", "opus",
 ];
 
 /// Progress pemindaian yang dilaporkan ke UI.
@@ -186,13 +186,10 @@ impl Scanner {
     pub fn scan_file(&self, path: &Path) -> Result<Track, lofty::error::FileParseError> {
         let metadata = super::metadata::read_metadata(path)?;
 
-        let artwork_path = metadata
-            .artwork
-            .as_ref()
-            .and_then(|data| {
-                super::metadata::save_artwork(data, metadata.artwork_mime.as_deref(), &self.artwork_dir)
-                    .ok()
-            });
+        let artwork_path = metadata.artwork.as_ref().and_then(|data| {
+            super::metadata::save_artwork(data, metadata.artwork_mime.as_deref(), &self.artwork_dir)
+                .ok()
+        });
 
         Ok(super::metadata::build_track(path, &metadata, artwork_path))
     }

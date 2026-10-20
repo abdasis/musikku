@@ -120,9 +120,7 @@ impl Sidebar {
 
     /// Jumlah folder musik yang terdaftar, ditampilkan di bagian bawah.
     pub fn set_folder_count(&self, count: usize) {
-        self.group.set_description(Some(&format!(
-            "{} folder musik terdaftar",
-            count
-        )));
+        self.group
+            .set_description(Some(&format!("{} folder musik terdaftar", count)));
     }
 }

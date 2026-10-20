@@ -109,11 +109,13 @@ fn parse_leading_number(value: &str) -> Option<u32> {
 }
 
 /// Susun track dari metadata berkas dan informasi sistem berkas.
-pub fn build_track(path: &Path, metadata: &FileMetadata, artwork_path: Option<std::path::PathBuf>) -> Track {
+pub fn build_track(
+    path: &Path,
+    metadata: &FileMetadata,
+    artwork_path: Option<std::path::PathBuf>,
+) -> Track {
     let file_size = std::fs::metadata(path).map(|m| m.len() as i64).unwrap_or(0);
-    let file_modified_at = std::fs::metadata(path)
-        .and_then(|m| m.modified())
-        .ok();
+    let file_modified_at = std::fs::metadata(path).and_then(|m| m.modified()).ok();
 
     Track {
         id: 0,
@@ -138,7 +140,11 @@ pub fn build_track(path: &Path, metadata: &FileMetadata, artwork_path: Option<st
 }
 
 /// Tulis data gambar album ke berkas dan kembalikan path-nya.
-pub fn save_artwork(data: &[u8], mime: Option<&str>, target_dir: &Path) -> std::io::Result<std::path::PathBuf> {
+pub fn save_artwork(
+    data: &[u8],
+    mime: Option<&str>,
+    target_dir: &Path,
+) -> std::io::Result<std::path::PathBuf> {
     use std::io::Write;
 
     let extension = match mime {

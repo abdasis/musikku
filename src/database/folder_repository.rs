@@ -32,9 +32,9 @@ impl<'a> FolderRepository<'a> {
 
     /// Daftar seluruh folder terdaftar.
     pub fn list(&self) -> rusqlite::Result<Vec<LibraryFolder>> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT id, path, enabled, last_scanned_at FROM library_folders ORDER BY path ASC")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT id, path, enabled, last_scanned_at FROM library_folders ORDER BY path ASC",
+        )?;
         let rows = stmt.query_map([], Self::row_to_folder)?;
 
         let mut folders = Vec::new();

@@ -10,7 +10,9 @@ use musikku::library::{LibraryService, ScanControl, Scanner};
 fn main() -> anyhow::Result<()> {
     let mut args = std::env::args().skip(1);
     let folder = args.next().unwrap_or_else(|| "/tmp/musik-test".to_string());
-    let database_path = args.next().unwrap_or_else(|| "/tmp/musikku-seed.db".to_string());
+    let database_path = args
+        .next()
+        .unwrap_or_else(|| "/tmp/musikku-seed.db".to_string());
 
     let database = Rc::new(Database::open(std::path::Path::new(&database_path))?);
     let artwork_dir = std::path::PathBuf::from("/tmp/musikku-artwork-test");
@@ -28,11 +30,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     let repo = TrackRepository::new(database.connection());
-    println!(
-        "tersimpan {} lagu ke {}",
-        repo.count()?,
-        database_path
-    );
+    println!("tersimpan {} lagu ke {}", repo.count()?, database_path);
 
     Ok(())
 }

@@ -84,11 +84,7 @@ impl CollectionPage {
     pub fn refresh(&self) {
         let repo = TrackRepository::new(self.state.database.connection());
         let mut tracks = repo
-            .query(
-                &self.filter,
-                TrackSort::Title,
-                SortDirection::Ascending,
-            )
+            .query(&self.filter, TrackSort::Title, SortDirection::Ascending)
             .unwrap_or_default();
 
         if self.filter.favorites_only {

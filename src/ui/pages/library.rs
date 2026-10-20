@@ -50,12 +50,45 @@ impl LibraryPage {
 
         widget.append(&toolbar);
 
+        // ---- Baris aksi multi-selection ----
+        // Muncul hanya ketika ada lagu yang dipilih.
+        let selection_bar = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        selection_bar.set_margin_start(16);
+        selection_bar.set_margin_end(16);
+        selection_bar.set_margin_bottom(8);
+        selection_bar.set_visible(false);
+        selection_bar.add_css_class("selection-bar");
+
+        let selection_label = gtk::Label::new(Some("0 lagu dipilih"));
+        selection_label.add_css_class("heading");
+        selection_label.set_hexpand(true);
+        selection_bar.append(&selection_label);
+
+        let enqueue_button = gtk::Button::with_label("Tambah ke Antrean");
+        enqueue_button.add_css_class("flat");
+        enqueue_button.update_property(&[gtk::accessible::Property::Label("Tambah ke Antrean")]);
+        selection_bar.append(&enqueue_button);
+
+        let favorite_button = gtk::Button::with_label("Favorit");
+        favorite_button.add_css_class("flat");
+        favorite_button.update_property(&[gtk::accessible::Property::Label("Tandai favorit")]);
+        selection_bar.append(&favorite_button);
+
+        let remove_button = gtk::Button::with_label("Hapus dari Library");
+        remove_button.add_css_class("flat");
+        remove_button.add_css_class("destructive-action");
+        remove_button.update_property(&[gtk::accessible::Property::Label("Hapus dari library")]);
+        selection_bar.append(&remove_button);
+
+        widget.append(&selection_bar);
+
         // ---- Tabel lagu ----
         let model = TrackListModel::new();
 
         // Aksi tabel: putar, tambah ke antrean, playlist, dan hapus.
         let state_for_play = Rc::clone(&state);
         let state_for_menu = Rc::clone(&state);
+        let model_for_menu = model.clone();
         let table = build_track_table(
             &model,
             super::super::track_list::TrackTableActions {
@@ -63,11 +96,32 @@ impl LibraryPage {
                     state_for_play.playback.play_single(track);
                     state_for_play.mark_played(track.id);
                 }),
-                on_selection_changed: Box::new(|_| {}),
+                on_selection_changed: Box::new({
+                    let bar = selection_bar.clone();
+                    let label = selection_label.clone();
+                    move |selected| {
+                        let count = selected.len();
+                        bar.set_visible(count > 0);
+                        label.set_text(&if count == 1 {
+                            "1 lagu dipilih".to_string()
+                        } else {
+                            format!("{count} lagu dipilih")
+                        });
+                    }
+                }),
                 on_context_menu: Box::new(move |track, popover| {
                     let state = Rc::clone(&state_for_menu);
-                    let track = track.clone();
-                    super::super::context_menu::show_track_menu(&state, &track, popover);
+
+                    // Bila ada beberapa lagu terpilih, aksi berlaku untuk
+                    // semuanya; selain itu hanya untuk baris yang diklik.
+                    let tracks = model_for_menu.selected_tracks();
+                    let tracks = if tracks.len() > 1 {
+                        tracks
+                    } else {
+                        vec![track.clone()]
+                    };
+
+                    super::super::context_menu::show_track_menu(&state, &tracks, popover);
                 }),
             },
         );
@@ -84,6 +138,7 @@ impl LibraryPage {
         };
 
         page.connect_signals();
+        page.connect_bulk_actions(enqueue_button, favorite_button, remove_button);
         page.refresh();
         page
     }
@@ -95,6 +150,71 @@ impl LibraryPage {
     /// Fokuskan field pencarian.
     pub fn focus_search(&self) {
         self.search_entry.grab_focus();
+    }
+
+    /// Hubungkan aksi massal pada baris multi-selection.
+    fn connect_bulk_actions(
+        &self,
+        enqueue_button: gtk::Button,
+        favorite_button: gtk::Button,
+        remove_button: gtk::Button,
+    ) {
+        {
+            let state = Rc::clone(&self.state);
+            let model = self.model.clone();
+            enqueue_button.connect_clicked(move |_| {
+                let tracks = model.selected_tracks();
+                if tracks.is_empty() {
+                    return;
+                }
+                state.playback.enqueue_many(&tracks);
+                state.set_status_message(format!("{} lagu ditambahkan ke antrean.", tracks.len()));
+            });
+        }
+
+        {
+            let state = Rc::clone(&self.state);
+            let model = self.model.clone();
+            favorite_button.connect_clicked(move |_| {
+                let tracks = model.selected_tracks();
+                if tracks.is_empty() {
+                    return;
+                }
+                for track in &tracks {
+                    state.set_favorite(track.id, true);
+                }
+                state.refresh_library();
+                state
+                    .set_status_message(format!("{} lagu ditandai sebagai favorit.", tracks.len()));
+            });
+        }
+
+        {
+            let state = Rc::clone(&self.state);
+            let model = self.model.clone();
+            remove_button.connect_clicked(move |_| {
+                let tracks = model.selected_tracks();
+                if tracks.is_empty() {
+                    return;
+                }
+
+                // Menghapus track hanya menghapus baris database; berkas
+                // audio di disk tetap ada.
+                let repo = crate::database::TrackRepository::new(state.database.connection());
+                let mut removed = 0;
+                for track in &tracks {
+                    if repo.remove(track.id).is_ok() {
+                        state.playback.remove_from_queue(track.id);
+                        removed += 1;
+                    }
+                }
+
+                state.refresh_library();
+                state.set_status_message(format!(
+                    "{removed} lagu dihapus dari library. Berkas tetap tersimpan."
+                ));
+            });
+        }
     }
 
     fn connect_signals(&self) {

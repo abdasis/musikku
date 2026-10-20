@@ -115,7 +115,8 @@ impl PlayerBar {
         let position_label = gtk::Label::new(Some("0:00"));
         position_label.add_css_class("player-time");
 
-        let position_scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 1000.0, 10.0);
+        let position_scale =
+            gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 1000.0, 10.0);
         position_scale.set_hexpand(true);
         position_scale.set_draw_value(false);
         position_scale.set_valign(gtk::Align::Center);
@@ -247,12 +248,11 @@ impl PlayerBar {
                 self.title_label.set_text(track.display_title());
                 self.artist_label.set_text(track.display_artist());
                 self.refresh_cover(track);
-                self.favorite_button
-                    .set_icon_name(if track.is_favorite {
-                        "starred-symbolic"
-                    } else {
-                        "non-starred-symbolic"
-                    });
+                self.favorite_button.set_icon_name(if track.is_favorite {
+                    "starred-symbolic"
+                } else {
+                    "non-starred-symbolic"
+                });
                 self.favorite_button.set_sensitive(true);
             }
             None => {
@@ -333,8 +333,7 @@ impl PlayerBar {
     fn refresh_static_state(&self) {
         self.previous_button
             .set_tooltip_text(Some("Lagu sebelumnya"));
-        self.next_button
-            .set_tooltip_text(Some("Lagu berikutnya"));
+        self.next_button.set_tooltip_text(Some("Lagu berikutnya"));
     }
 
     /// Sembunyikan informasi sekunder pada window sempit.

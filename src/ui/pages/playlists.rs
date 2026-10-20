@@ -3,6 +3,7 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
+use gtk::gio;
 
 use crate::app::state::AppState;
 use crate::core::model::Track;
@@ -193,6 +194,35 @@ impl PlaylistsPage {
             count.add_css_class("caption");
             box_widget.append(&count);
 
+            // Menu aksi playlist: ganti nama dan hapus.
+            let menu_button = gtk::MenuButton::new();
+            menu_button.set_icon_name("view-more-symbolic");
+            menu_button.add_css_class("flat");
+            menu_button.set_tooltip_text(Some("Opsi playlist"));
+            menu_button.update_property(&[gtk::accessible::Property::Label("Opsi playlist")]);
+
+            let menu = gio::Menu::new();
+            let section = gio::Menu::new();
+            section.append(Some("Ganti Nama"), Some("playlist.rename"));
+            section.append(Some("Hapus Playlist"), Some("playlist.delete"));
+            menu.append_section(None, &section);
+            menu_button.set_menu_model(Some(&menu));
+
+            let group = gio::SimpleActionGroup::new();
+            group.add_action(&Self::rename_action(
+                Rc::clone(&self.state),
+                playlist.id,
+                playlist.name.clone(),
+            ));
+            group.add_action(&Self::delete_action(
+                Rc::clone(&self.state),
+                playlist.id,
+                playlist.name.clone(),
+            ));
+            menu_button.insert_action_group("playlist", Some(&group));
+
+            box_widget.append(&menu_button);
+
             row.set_child(Some(&box_widget));
 
             let state = Rc::clone(&self.state);
@@ -291,13 +321,76 @@ impl PlaylistsPage {
         }
     }
 
+    /// Aksi ganti nama playlist.
+    fn rename_action(
+        state: Rc<AppState>,
+        playlist_id: i64,
+        current_name: String,
+    ) -> gio::SimpleAction {
+        let action = gio::SimpleAction::new("playlist.rename", None);
+        action.connect_activate(move |_, _| {
+            let state = Rc::clone(&state);
+            let parent = state.main_window();
+            crate::ui::playlist_dialog::ask_playlist_name_with(
+                parent.as_ref(),
+                "Ganti Nama Playlist",
+                "Nama playlist:",
+                &current_name,
+                move |name| {
+                    let repo = PlaylistRepository::new(state.database.connection());
+                    match repo.rename(playlist_id, &name) {
+                        Ok(()) => {
+                            state.refresh_library();
+                            state
+                                .set_status_message(format!("Playlist diubah menjadi \"{name}\"."));
+                        }
+                        Err(err) => {
+                            log::error!("Gagal mengganti nama playlist: {err}");
+                            state.set_status_message("Gagal mengganti nama playlist.");
+                        }
+                    }
+                },
+            );
+        });
+        action
+    }
+
+    /// Aksi hapus playlist.
+    fn delete_action(
+        state: Rc<AppState>,
+        playlist_id: i64,
+        playlist_name: String,
+    ) -> gio::SimpleAction {
+        let action = gio::SimpleAction::new("playlist.delete", None);
+        action.connect_activate(move |_, _| {
+            let state = Rc::clone(&state);
+            let repo = PlaylistRepository::new(state.database.connection());
+            match repo.remove(playlist_id) {
+                Ok(()) => {
+                    // Playlist yang sedang dibuka harus ditutup.
+                    if state.open_playlist().map(|p| p.id) == Some(playlist_id) {
+                        state.set_open_playlist(None);
+                    }
+                    state.refresh_library();
+                    state.set_status_message(format!("Playlist \"{playlist_name}\" dihapus."));
+                }
+                Err(err) => {
+                    log::error!("Gagal menghapus playlist: {err}");
+                    state.set_status_message("Gagal menghapus playlist.");
+                }
+            }
+        });
+        action
+    }
+
     /// Hubungkan tombol buat playlist dengan dialog nama.
     fn connect_new_playlist(&self, button: gtk::Button) {
         let state = Rc::clone(&self.state);
         button.connect_clicked(move |_| {
             let state = Rc::clone(&state);
+            let parent = state.main_window();
             crate::ui::playlist_dialog::ask_playlist_name(
-                &gtk::Window::builder().build(),
+                parent.as_ref(),
                 "Buat Playlist",
                 "Nama playlist:",
                 move |name| {
@@ -305,6 +398,9 @@ impl PlaylistsPage {
                     match repo.create(&name) {
                         Ok(_) => {
                             state.refresh_library();
+                            // Minta halaman memuat ulang daftar playlist
+                            // agar playlist baru langsung terlihat.
+                            state.request_playlist_refresh();
                             state.set_status_message(format!("Playlist \"{name}\" dibuat."));
                         }
                         Err(err) => {

@@ -105,7 +105,10 @@ pub fn run(conn: &Connection) -> rusqlite::Result<()> {
         conn.execute_batch(sql)?;
         conn.execute(
             "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, ?2)",
-            rusqlite::params![version, crate::core::time::to_unix_seconds(std::time::SystemTime::now())],
+            rusqlite::params![
+                version,
+                crate::core::time::to_unix_seconds(std::time::SystemTime::now())
+            ],
         )?;
         log::info!("Migrasi database versi {version} selesai");
     }

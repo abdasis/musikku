@@ -83,9 +83,7 @@ impl Queue {
         } else {
             Some(start_index.min(self.order.len() - 1))
         };
-        self.current_track = tracks
-            .get(self.current_index.unwrap_or(0))
-            .cloned();
+        self.current_track = tracks.get(self.current_index.unwrap_or(0)).cloned();
     }
 
     /// Hapus track dari antrean.

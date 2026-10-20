@@ -31,10 +31,10 @@ pub struct MainWindow {
     content_stack: adw::ViewStack,
     /// Panel kanan Now Playing, disembunyikan pada window sempit.
     now_playing_panel: gtk::Box,
-    /// Pemisah sidebar dan konten.
+    /// Pemisah sidebar dan konten, dipakai untuk mengukur lebar.
     split_view: adw::NavigationSplitView,
     /// Pembatas yang memisahkan konten dan panel kanan.
-    paned: gtk::Paned,
+    panel_split: adw::NavigationSplitView,
     /// Tombol toggle panel antrean.
     queue_toggle: gtk::ToggleButton,
     /// Lapisan untuk menampilkan pesan status.
@@ -89,15 +89,8 @@ impl MainWindow {
         content_stack.add_titled(library_page.widget(), Some("library"), "Library");
         content_stack.add_titled(playlists_page.widget(), Some("playlists"), "Playlist");
         content_stack.add_titled(favorites_page.widget(), Some("favorites"), "Favorit");
-        content_stack.add_titled(
-            recently_page.widget(),
-            Some("recently"),
-            "Terakhir Diputar",
-        );
+        content_stack.add_titled(recently_page.widget(), Some("recently"), "Terakhir Diputar");
         content_stack.add_titled(settings_page.widget(), Some("settings"), "Pengaturan");
-
-        let content_page = adw::NavigationPage::new(&content_stack, "Konten");
-        content_page.set_tag(Some("content"));
 
         // ---- Panel kanan Now Playing ----
         let now_playing = NowPlayingPanel::new(Rc::clone(&state));
@@ -106,29 +99,31 @@ impl MainWindow {
         now_playing_panel.add_css_class("now-playing-panel");
         now_playing_panel.append(now_playing.widget());
 
-        let now_playing_page = adw::NavigationPage::new(&now_playing_panel, "Sekarang Diputar");
-        now_playing_page.set_tag(Some("now-playing"));
+        // Panel Now Playing dipisah dengan split view kedua, supaya
+        // lebarnya dijaga oleh libadwaita dan panel bisa disembunyikan
+        // pada window sempit.
+        let panel_split = adw::NavigationSplitView::new();
 
-        // Pembatas memisahkan konten dan panel kanan; pengguna bisa
-        // menyeretnya atau menyembunyikannya lewat tombol antrean.
-        // Posisi awal pembatas dihitung ulang saat jendela digeser;
-        // angka di sini hanya budgetary awal.
-        let paned = gtk::Paned::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .start_child(&content_page)
-            .end_child(&now_playing_page)
-            .position(920)
-            .shrink_start_child(false)
-            .shrink_end_child(false)
-            .resize_start_child(true)
-            .resize_end_child(false)
-            .build();
+        // Split view memerlukan NavigationPage untuk kedua sisinya.
+        let content_child = adw::NavigationPage::new(&content_stack, "Konten");
+        content_child.set_tag(Some("content"));
+        let panel_child = adw::NavigationPage::new(&now_playing_panel, "Sekarang Diputar");
+        panel_child.set_tag(Some("now-playing"));
+
+        panel_split.set_content(Some(&content_child));
+        panel_split.set_sidebar(Some(&panel_child));
+        panel_split.set_sidebar_position(gtk::PackType::End);
+        panel_split.set_collapsed(true);
+        // Lebar panel dibatasi agar tidak memakan seluruh ruang.
+        panel_split.set_sidebar_width_fraction(0.28);
+        panel_split.set_max_sidebar_width(320.0);
+        panel_split.set_min_sidebar_width(280.0);
 
         // ---- Sidebar ----
         let sidebar = Sidebar::new(Rc::clone(&state));
 
         let split_view = adw::NavigationSplitView::new();
-        let paned_page = adw::NavigationPage::new(&paned, "Konten");
+        let paned_page = adw::NavigationPage::new(&panel_split, "Konten");
         paned_page.set_tag(Some("content"));
 
         split_view.set_sidebar(Some(sidebar.widget()));
@@ -165,7 +160,7 @@ impl MainWindow {
             content_stack,
             now_playing_panel,
             split_view,
-            paned,
+            panel_split,
             queue_toggle,
             toast_overlay,
         };
@@ -183,7 +178,8 @@ impl MainWindow {
     /// Minta semua halaman memuat ulang datanya.
     pub fn refresh_all(&self) {
         self.state.refresh_library();
-        self.sidebar.set_folder_count(self.state.library.folders().len());
+        self.sidebar
+            .set_folder_count(self.state.library.folders().len());
         self.home_page.refresh();
         self.library_page.refresh();
         self.playlists_page.refresh();
@@ -192,6 +188,11 @@ impl MainWindow {
         self.now_playing.refresh_queue();
         self.now_playing.refresh();
         self.player_bar.refresh();
+    }
+
+    /// Muat ulang daftar playlist.
+    pub fn refresh_playlists(&self) {
+        self.playlists_page.refresh();
     }
 
     /// Tampilkan halaman sesuai keadaan aplikasi.
@@ -310,10 +311,10 @@ impl MainWindow {
         menu.set_child(Some(&menu_box));
         menu_button.set_popover(Some(&menu));
 
-        // Panel antrean dapat disembunyikan.
-        let now_playing_panel = self.now_playing_panel.clone();
+        // Panel antrean dapat disembunyikan lewat collapse split view.
+        let panel_split = self.panel_split.clone();
         self.queue_toggle.connect_toggled(move |toggle| {
-            now_playing_panel.set_visible(toggle.is_active());
+            panel_split.set_collapsed(!toggle.is_active());
         });
 
         self.install_shortcuts();
@@ -455,42 +456,39 @@ impl MainWindow {
     /// Pada window sempit panel Now Playing disembunyikan; pada window lebar
     /// panel ditampilkan kembali.
     fn connect_resize(&self) {
-        let paned = self.paned.clone();
-        let now_playing_panel = self.now_playing_panel.clone();
+        let panel_split = self.panel_split.clone();
         let queue_toggle = self.queue_toggle.clone();
         let last_width = std::cell::Cell::new(0i32);
-
-        // Ukuran jendela dibaca dari alokasi widget karena Window tidak
-        // menyediakan notifikasi ukuran di GTK4.
-        let probe = self.paned.clone();
-        let window_probe = self.window.clone();
         let player_bar = Rc::clone(&self.player_bar);
         let split_view = self.split_view.clone();
+        let sidebar = self.sidebar.widget().clone();
+
         glib::timeout_add_local(std::time::Duration::from_millis(200), move || {
-            // Lebar jendela yang dipakai, bukan lebar panel konten.
-            let width = window_probe.width();
-            if width <= 0 || width == last_width.get() {
+            // Lebar area konten dipakai sebagai patokan. Split view
+            // memuat sidebar, jadi lebar kontennya adalah lebar split
+            // view dikurangi lebar sidebar yang tampil.
+            let total = split_view.width().saturating_sub(sidebar.width().max(0));
+            if total <= 0 {
+                // Belum dialokasikan; tunggu alokasi berikutnya.
                 return glib::ControlFlow::Continue;
             }
-            last_width.set(width);
-            let _ = &probe;
+            if total == last_width.get() {
+                return glib::ControlFlow::Continue;
+            }
+            last_width.set(total);
 
-            // Lebar di bawah 1000 piksel tidak cukup untuk tiga kolom.
-            let narrow = width < 1000;
+            // Panel Now Playing membutuhkan 320 piksel; sisanya dipakai
+            // konten. Layout tiga kolom baru muat bila tersedia.
+            let content_width = panel_split.width();
+            let narrow = content_width < 320 + 480;
 
-            now_playing_panel.set_visible(!narrow);
+            // Panel disembunyikan pada window sempit lewat collapse.
+            panel_split.set_collapsed(narrow);
             queue_toggle.set_active(!narrow);
 
-            if narrow {
-                paned.set_position(width - 120);
-            } else {
-                paned.set_position((width - 300).max(400));
-            }
-
-            // Pada window sempit sidebar dan panel player diringkas.
-            let compact = width < 1000;
-            player_bar.set_compact(compact);
-            split_view.set_collapsed(compact);
+            // Pada window sempit, sidebar menjadi navigasi ringkas dan
+            // informasi sekunder pada player bar disembunyikan.
+            player_bar.set_compact(narrow);
 
             glib::ControlFlow::Continue
         });

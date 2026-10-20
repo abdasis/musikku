@@ -4,7 +4,9 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::core::model::{Playlist, RepeatMode, Track};
-use crate::database::{Database, PlaybackRepository, PlaylistRepository, SettingsRepository, TrackRepository};
+use crate::database::{
+    Database, PlaybackRepository, PlaylistRepository, SettingsRepository, TrackRepository,
+};
 use crate::library::LibraryService;
 use crate::playback::{PlaybackController, PlaybackStatus};
 use crate::settings::Settings;
@@ -95,11 +97,19 @@ pub struct AppState {
     scan_tx: std::sync::mpsc::Sender<()>,
     /// Penerima permintaan pemindaian.
     scan_rx: std::sync::mpsc::Receiver<()>,
+    /// Permintaan memuat ulang daftar playlist.
+    playlist_tx: std::sync::mpsc::Sender<()>,
+    /// Penerima permintaan muat ulang playlist.
+    playlist_rx: std::sync::mpsc::Receiver<()>,
+    /// Jendela utama, dipakai sebagai induk dialog.
+    main_window: Mutex<Option<adw::ApplicationWindow>>,
 }
 
 impl std::fmt::Debug for AppState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AppState").field("page", &self.page()).finish()
+        f.debug_struct("AppState")
+            .field("page", &self.page())
+            .finish()
     }
 }
 
@@ -112,6 +122,7 @@ impl AppState {
     ) -> Rc<Self> {
         let (page_tx, page_rx) = std::sync::mpsc::channel();
         let (scan_tx, scan_rx) = std::sync::mpsc::channel();
+        let (playlist_tx, playlist_rx) = std::sync::mpsc::channel();
 
         Rc::new(Self {
             database,
@@ -125,6 +136,9 @@ impl AppState {
             page_rx,
             scan_tx,
             scan_rx,
+            playlist_tx,
+            playlist_rx,
+            main_window: Mutex::new(None),
         })
     }
 
@@ -147,6 +161,16 @@ impl AppState {
         self.page_rx.try_recv().ok()
     }
 
+    /// Set jendela utama sebagai induk dialog.
+    pub fn set_main_window(&self, window: adw::ApplicationWindow) {
+        *lock(&self.main_window) = Some(window);
+    }
+
+    /// Jendela utama sebagai induk dialog, bila sudah tersedia.
+    pub fn main_window(&self) -> Option<adw::ApplicationWindow> {
+        lock(&self.main_window).clone()
+    }
+
     /// Minta pemindaian library dimulai ulang.
     pub fn request_scan(&self) {
         let _ = self.scan_tx.send(());
@@ -157,16 +181,25 @@ impl AppState {
         self.scan_rx.try_recv().is_ok()
     }
 
+    /// Minta daftar playlist dimuat ulang.
+    pub fn request_playlist_refresh(&self) {
+        let _ = self.playlist_tx.send(());
+    }
+
+    /// Ambil permintaan muat ulang playlist yang belum diproses.
+    pub fn poll_playlist_refresh(&self) -> bool {
+        self.playlist_rx.try_recv().is_ok()
+    }
+
     /// State kosong, dipakai sebelum aplikasi benar-benar siap.
     pub fn placeholder() -> Self {
-        let database = Rc::new(Database::open_in_memory().expect("Gagal membuat database sementara"));
-        let library = LibraryService::new(
-            Rc::clone(&database),
-            std::path::PathBuf::from("/tmp"),
-        );
+        let database =
+            Rc::new(Database::open_in_memory().expect("Gagal membuat database sementara"));
+        let library = LibraryService::new(Rc::clone(&database), std::path::PathBuf::from("/tmp"));
         let playback = PlaybackController::new(crate::playback::AudioEngine::new());
         let (page_tx, page_rx) = std::sync::mpsc::channel();
         let (scan_tx, scan_rx) = std::sync::mpsc::channel();
+        let (playlist_tx, playlist_rx) = std::sync::mpsc::channel();
 
         Self {
             database,
@@ -189,6 +222,9 @@ impl AppState {
             page_rx,
             scan_tx,
             scan_rx,
+            playlist_tx,
+            playlist_rx,
+            main_window: Mutex::new(None),
         }
     }
 
