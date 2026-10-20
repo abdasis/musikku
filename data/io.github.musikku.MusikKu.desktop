@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=MusikKu
+GenericName=Pemutar Musik
+Comment=Putar dan kelola koleksi musik lokal
+Icon=io.github.musikku.MusikKu
+Exec=musikku
+Terminal=false
+Categories=AudioVideo;Audio;Player;GTK;
+Keywords=musik;lagu;audio;pemutar;player;music;
+StartupNotify=true
+StartupWMClass=MusikKu

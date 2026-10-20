@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.musikku.MusikKu</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>MusikKu</name>
+  <summary>Pemutar musik lokal untuk Linux</summary>
+  <description>
+    <p>
+      MusikKu adalah pemutar musik desktop Linux yang berfokus pada koleksi musik lokal.
+      Aplikasi menyediakan pemutaran audio, manajemen library, playlist, pencarian,
+      metadata lagu, serta kontrol playback yang mudah diakses.
+    </p>
+    <p>Fitur:</p>
+    <ul>
+      <li>Pemindaian folder musik dengan pembacaan metadata otomatis</li>
+      <li>Library lagu dengan pencarian dan pengurutan</li>
+      <li>Playlist yang bisa dibuat dan diatur urutannya</li>
+      <li>Panel Now Playing dengan antrean putar</li>
+      <li>Integrasi MPRIS untuk media control desktop</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.musikku.MusikKu.desktop</launchable>
+  <provides>
+    <binary>musikku</binary>
+  </provides>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Player</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+</component>

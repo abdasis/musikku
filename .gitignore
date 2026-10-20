@@ -1,0 +1,11 @@
+# Build artifacts
+/target/
+**/*.rs.bk
+
+# Test artifacts
+/tests/screenshots/
+*.xwd
+
+# Editor
+.idea/
+.vscode/

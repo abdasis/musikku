@@ -1,0 +1,30 @@
+app-id: io.github.musikku.MusikKu
+runtime: org.gnome.Platform
+runtime-version: '45'
+sdk: org.gnome.Sdk
+command: musikku
+
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  - --share=network
+  - --talk-name=org.mpris.MediaPlayer2.musikku
+  - --own-name=org.mpris.MediaPlayer2.musikku
+
+modules:
+  - name: musikku
+    buildsystem: simple
+    build-commands:
+      - cargo build --release --offline
+      - install -Dm644 target/release/musikku /app/bin/musikku
+      - install -Dm644 data/io.github.musikku.MusikKu.desktop
+        /app/share/applications/io.github.musikku.MusikKu.desktop
+      - install -Dm644 data/io.github.musikku.MusikKu.metainfo.xml
+        /app/share/metainfo/io.github.musikku.MusikKu.metainfo.xml
+      - install -Dm644 resources/icons/io.github.musikku.MusikKu.svg
+        /app/share/icons/hicolor/scalable/apps/io.github.musikku.MusikKu.svg
+    sources:
+      - type: dir
+        path: ..

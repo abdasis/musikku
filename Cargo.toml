@@ -1,0 +1,40 @@
+[package]
+name = "musikku"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.85"
+description = "MusikKu — native Linux music player for local music collections"
+license = "GPL-3.0-or-later"
+default-run = "musikku"
+
+[lib]
+name = "musikku"
+path = "src/lib.rs"
+
+[dependencies]
+gtk = { package = "gtk4", version = "0.11", features = ["v4_12"] }
+adw = { package = "libadwaita", version = "0.9", features = ["v1_9"] }
+gst = { package = "gstreamer", version = "0.25" }
+gst_play = { package = "gstreamer-play", version = "0.25" }
+gdk_pixbuf = { package = "gdk-pixbuf", version = "0.22" }
+rusqlite = { version = "0.40", features = ["bundled"] }
+lofty = "0.25"
+log = "0.4"
+env_logger = "0.11"
+anyhow = "1"
+thiserror = "2"
+mpris_server = { package = "mpris-server", version = "0.10", features = ["tokio"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+url = "2"
+glib = "0.22"
+gio = "0.22"
+graphene-rs = "0.22"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 2
+lto = "thin"
+strip = true
