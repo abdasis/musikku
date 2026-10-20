@@ -411,3 +411,69 @@ fn migrations_are_idempotent() {
 
     assert_eq!(repo.count().expect("hitung gagal"), 1);
 }
+
+/// Track dengan id dan path unik untuk pengujian antrean.
+fn queue_track(id: i64) -> Track {
+    let mut track = sample_track(id as usize, &format!("Lagu {id}"), "Artis", "Album");
+    track.id = id;
+    track.file_path = format!("/musik/antrean-{id}.mp3").into();
+    track
+}
+
+#[test]
+fn queue_reorder_moves_the_track_to_the_target_position() {
+    use musikku::playback::Queue;
+
+    let mut queue = Queue::new();
+    for id in [10i64, 20, 30, 40] {
+        queue.add(&queue_track(id));
+    }
+
+    // Lagu 40 dipindahkan ke posisi paling depan.
+    queue.reorder(3, 0);
+    assert_eq!(queue.order(), &[40, 10, 20, 30]);
+
+    // Lagu 20 dipindahkan ke posisi terakhir.
+    queue.reorder(2, 3);
+    assert_eq!(queue.order(), &[40, 10, 30, 20]);
+}
+
+#[test]
+fn queue_reorder_keeps_the_playing_track_in_sync() {
+    use musikku::playback::Queue;
+
+    let mut queue = Queue::new();
+    for id in [10i64, 20, 30, 40] {
+        queue.add(&queue_track(id));
+    }
+
+    // Lagu pada indeks 1 menjadi lagu yang sedang diputar.
+    queue.set_current_index(1, Some(queue_track(20)));
+
+    // Baris sebelum lagu aktif digeser ke belakang; indeks lagu
+    // aktif ikut mundur satu posisi.
+    queue.reorder(0, 2);
+    assert_eq!(queue.order(), &[20, 30, 10, 40]);
+    assert_eq!(queue.current_index(), Some(0));
+
+    // Baris tepat di posisi lagu aktif dipindah; indeksnya ikut.
+    queue.reorder(0, 2);
+    assert_eq!(queue.order(), &[30, 10, 20, 40]);
+    assert_eq!(queue.current_index(), Some(2));
+}
+
+#[test]
+fn queue_reorder_ignores_out_of_range_positions() {
+    use musikku::playback::Queue;
+
+    let mut queue = Queue::new();
+    for id in [10i64, 20] {
+        queue.add(&queue_track(id));
+    }
+
+    queue.reorder(0, 9);
+    assert_eq!(queue.order(), &[10, 20]);
+
+    queue.reorder(9, 0);
+    assert_eq!(queue.order(), &[10, 20]);
+}

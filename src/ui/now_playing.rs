@@ -438,7 +438,7 @@ impl NowPlayingPanel {
 
         let queue = self.state.playback.queue();
         let current_index = queue.current_index();
-        let tracks = queue.order();
+        let tracks = queue.order().to_vec();
 
         self.queue_count_label
             .set_text(&format!("Antrean ({})", tracks.len()));
@@ -489,25 +489,70 @@ impl NowPlayingPanel {
             duration.add_css_class("caption");
             row_box.append(&duration);
 
+            // Tombol pemindah urutan, sebagai alternatif seretan yang
+            // juga dapat dipakai keyboard.
+            let move_up = gtk::Button::from_icon_name("go-up-symbolic");
+            move_up.set_tooltip_text(Some("Naikkan dalam antrean"));
+            move_up.add_css_class("flat");
+            move_up.set_sensitive(index > 0);
+            move_up.update_property(&[gtk::accessible::Property::Label("Naikkan dalam antrean")]);
+            row_box.append(&move_up);
+
+            let move_down = gtk::Button::from_icon_name("go-down-symbolic");
+            move_down.set_tooltip_text(Some("Turunkan dalam antrean"));
+            move_down.add_css_class("flat");
+            move_down.set_sensitive(index + 1 < tracks.len());
+            move_down
+                .update_property(&[gtk::accessible::Property::Label("Turunkan dalam antrean")]);
+            row_box.append(&move_down);
+
             row.set_child(Some(&row_box));
 
             if current_index == Some(index) {
                 row.add_css_class("queue-active");
             }
 
-            // Seret baris untuk mengubah urutan antrean. Id track
-            // dibawa sebagai data seret; GTK menangani memulai seretan
-            // beserta perangkat dan koordinatnya.
+            // Seret baris untuk mengubah urutan antrean.
+            //
+            // DragSource dipasang pada isi baris karena baris
+            // GtkListBoxRow tidak menerima controller secara langsung.
+            // Data seretan memuat id track.
             let drag = gtk::DragSource::new();
             drag.set_actions(gdk::DragAction::MOVE);
-            drag.set_content(Some(&gdk::ContentProvider::for_value(&track.id.to_value())));
-            row.add_controller(drag);
+
+            let track_id = track.id;
+            drag.connect_prepare(move |_, _x, _y| {
+                Some(gdk::ContentProvider::for_value(&track_id.to_value()))
+            });
+
+            row_box.add_controller(drag);
 
             let state = Rc::clone(&self.state);
             let track_for_click = track.clone();
             row.connect_activate(move |_| {
                 state.playback.play_single(&track_for_click);
             });
+
+            {
+                let state = Rc::clone(&self.state);
+                move_up.connect_clicked(move |_| {
+                    if index > 0 {
+                        state.playback.reorder_queue(index, index - 1);
+                        state.set_status_message("Lagu dipindahkan ke atas.");
+                    }
+                });
+            }
+
+            {
+                let state = Rc::clone(&self.state);
+                let track_count = tracks.len();
+                move_down.connect_clicked(move |_| {
+                    if index + 1 < track_count {
+                        state.playback.reorder_queue(index, index + 1);
+                        state.set_status_message("Lagu dipindahkan ke bawah.");
+                    }
+                });
+            }
 
             self.queue_list.append(&row);
         }

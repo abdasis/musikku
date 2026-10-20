@@ -6,3 +6,4 @@ pub mod queue;
 
 pub use controller::{PlaybackController, PlaybackEvent};
 pub use engine::{AudioEngine, PlaybackStatus};
+pub use queue::Queue;
