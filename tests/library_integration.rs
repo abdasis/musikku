@@ -477,3 +477,36 @@ fn queue_reorder_ignores_out_of_range_positions() {
     queue.reorder(9, 0);
     assert_eq!(queue.order(), &[10, 20]);
 }
+
+#[test]
+fn drop_position_maps_a_point_to_the_row_underneath() {
+    use musikku::ui::now_playing::row_index_at;
+
+    // Empat baris setinggi 50 piksel.
+    let heights = [50.0, 50.0, 50.0, 50.0];
+
+    // Titik di baris pertama.
+    assert_eq!(row_index_at(heights.iter().copied(), 10.0), Some(0));
+    // Titik tepat di batas baris pertama dan kedua.
+    assert_eq!(row_index_at(heights.iter().copied(), 50.0), Some(1));
+    // Titik di baris ketiga.
+    assert_eq!(row_index_at(heights.iter().copied(), 120.0), Some(2));
+    // Titik di baris terakhir.
+    assert_eq!(row_index_at(heights.iter().copied(), 190.0), Some(3));
+}
+
+#[test]
+fn drop_position_beyond_the_last_row_uses_the_last_row() {
+    use musikku::ui::now_playing::row_index_at;
+
+    let heights = [50.0, 50.0];
+    assert_eq!(row_index_at(heights.iter().copied(), 500.0), Some(1));
+}
+
+#[test]
+fn drop_position_on_an_empty_list_has_no_row() {
+    use musikku::ui::now_playing::row_index_at;
+
+    let heights: [f64; 0] = [];
+    assert_eq!(row_index_at(heights.iter().copied(), 10.0), None);
+}

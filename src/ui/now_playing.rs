@@ -13,6 +13,29 @@ use crate::playback::PlaybackStatus;
 
 use super::artwork;
 
+/// Tentukan indeks baris pada titik tertentu dari tinggi tiap baris.
+///
+/// Mengembalikan `None` bila daftar kosong. Bila titik jatuh di luar
+/// baris terakhir, baris terakhir yang dipakai.
+pub fn row_index_at(heights: impl Iterator<Item = f64>, y: f64) -> Option<usize> {
+    let mut offset = 0.0;
+    let mut count = 0;
+
+    for (index, height) in heights.enumerate() {
+        if y < offset + height {
+            return Some(index);
+        }
+        offset += height;
+        count += 1;
+    }
+
+    // Jatuh di luar baris mana pun: pakai baris terakhir.
+    if count == 0 {
+        return None;
+    }
+    Some(count - 1)
+}
+
 /// Panel Now Playing dan antrean.
 pub struct NowPlayingPanel {
     widget: gtk::Box,
@@ -373,6 +396,7 @@ impl NowPlayingPanel {
 
         let drop_target = gtk::DropTarget::new(glib::Type::I64, gdk::DragAction::MOVE);
         drop_target.connect_drop(move |_target, value, _x, y| {
+            log::debug!("Drop diterima: y={y}");
             let Some(source_id) = value.get::<i64>().ok() else {
                 return false;
             };
@@ -412,22 +436,14 @@ impl NowPlayingPanel {
     /// Koordinat drop bersifat relatif terhadap daftar, sehingga posisi
     /// tiap baris dihitung dari tinggi baris sebelumnya.
     fn row_at_position(list: &gtk::ListBox, y: f64) -> Option<usize> {
+        let mut heights = Vec::new();
         let mut child = list.first_child();
-        let mut index = 0;
-        let mut offset = 0.0;
-
         while let Some(row) = child {
-            let height = row.height() as f64;
-            if y < offset + height {
-                return Some(index);
-            }
-            offset += height;
-            index += 1;
+            heights.push(row.height() as f64);
             child = row.next_sibling();
         }
 
-        // Jatuh di luar baris mana pun: pakai baris terakhir.
-        (index > 0).then_some(index - 1)
+        row_index_at(heights.into_iter(), y)
     }
 
     /// Bangun ulang daftar antrean.
@@ -522,6 +538,7 @@ impl NowPlayingPanel {
 
             let track_id = track.id;
             drag.connect_prepare(move |_, _x, _y| {
+                log::debug!("Seretan disiapkan: track {track_id}");
                 Some(gdk::ContentProvider::for_value(&track_id.to_value()))
             });
 
