@@ -175,7 +175,10 @@ impl AudioEngine {
     /// Berhenti sepenuhnya dan kosongkan pipeline.
     pub fn stop(&self) {
         self.play.stop();
-        self.play.set_uri(None);
+
+        // GstPlay menolak URI null, jadi pipeline dikosongkan dengan
+        // mengganti ke URI kosong yang valid.
+        self.play.set_uri(Some(""));
         *lock(&self.status) = PlaybackStatus::Stopped;
         *lock(&self.position_ms) = 0;
     }
