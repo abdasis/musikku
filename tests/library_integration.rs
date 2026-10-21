@@ -510,3 +510,41 @@ fn drop_position_on_an_empty_list_has_no_row() {
     let heights: [f64; 0] = [];
     assert_eq!(row_index_at(heights.iter().copied(), 10.0), None);
 }
+
+#[test]
+fn drop_target_index_shifts_when_moving_downwards() {
+    use musikku::ui::now_playing::drop_target_index;
+
+    // Baris sumber sebelum baris tujuan: indeks tujuan digeser satu.
+    assert_eq!(drop_target_index(0, 2), Some(1));
+    assert_eq!(drop_target_index(0, 3), Some(2));
+    assert_eq!(drop_target_index(1, 3), Some(2));
+}
+
+#[test]
+fn drop_target_index_keeps_position_when_moving_upwards() {
+    use musikku::ui::now_playing::drop_target_index;
+
+    // Baris sumber setelah baris tujuan: indeks tujuan tetap.
+    assert_eq!(drop_target_index(2, 0), Some(0));
+    assert_eq!(drop_target_index(3, 1), Some(1));
+}
+
+#[test]
+fn drop_target_index_reports_no_change_for_the_same_row() {
+    use musikku::ui::now_playing::drop_target_index;
+
+    assert_eq!(drop_target_index(1, 1), None);
+    // Baris tepat di bawah sumber menghasilkan posisi yang sama.
+    assert_eq!(drop_target_index(1, 2), None);
+}
+
+#[test]
+fn drop_target_index_handles_the_first_row() {
+    use musikku::ui::now_playing::drop_target_index;
+
+    // Baris pertama ke baris kedua: sudah bergeser menjadi posisi yang sama.
+    assert_eq!(drop_target_index(0, 1), None);
+    // Baris pertama ke baris keempat: bergeser ke baris ketiga.
+    assert_eq!(drop_target_index(0, 3), Some(2));
+}

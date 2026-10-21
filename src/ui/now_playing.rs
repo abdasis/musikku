@@ -13,6 +13,21 @@ use crate::playback::PlaybackStatus;
 
 use super::artwork;
 
+/// Sesuaikan indeks tujuan drop dengan indeks sumber.
+///
+/// Bila baris sumber berada sebelum baris tujuan, indeks tujuan digeser
+/// satu posisi karena baris sumber akan terangkat saat dipindahkan.
+/// Mengembalikan `None` bila posisi tidak berubah.
+pub fn drop_target_index(source_index: usize, target_index: usize) -> Option<usize> {
+    let adjusted = if source_index < target_index {
+        target_index.checked_sub(1)?
+    } else {
+        target_index
+    };
+
+    (adjusted != source_index).then_some(adjusted)
+}
+
 /// Tentukan indeks baris pada titik tertentu dari tinggi tiap baris.
 ///
 /// Mengembalikan `None` bila daftar kosong. Bila titik jatuh di luar
@@ -413,12 +428,12 @@ impl NowPlayingPanel {
                 return false;
             };
 
-            // Baris tujuanees dipindahkan ke posisi sumber bila diletakkan
-            // setelahnya, agar urutan hasil akhir tetap sesuai团队的.
-            let mut target_index = target_index;
-            if source_index < target_index {
-                target_index -= 1;
-            }
+            // Posisi tujuan disesuaikan: bila baris sumber diletakkan
+            // sebelum baris tujuan, indeksnya digeser satu agar hasil
+            // akhirnya sesuai pilihan pengguna.
+            let Some(target_index) = drop_target_index(source_index, target_index) else {
+                return true;
+            };
             if target_index == source_index {
                 return true;
             }
@@ -528,11 +543,16 @@ impl NowPlayingPanel {
                 row.add_css_class("queue-active");
             }
 
-            // Seret baris untuk mengubah urutan antrean.
-            //
-            // DragSource dipasang pada isi baris karena baris
-            // GtkListBoxRow tidak menerima controller secara langsung.
-            // Data seretan memuat id track.
+            // Pemegang baris untuk menyeret antrean. Seret dilakukan
+            // dari sini, bukan dari area teks, karena area teks dipakai
+            // untuk memilih dan memutar lagu.
+            let handle = gtk::Image::from_icon_name("view-drag-handle-symbolic");
+            handle.set_tooltip_text(Some("Seret untuk mengubah urutan"));
+            handle.set_valign(gtk::Align::Center);
+            handle.update_property(&[gtk::accessible::Property::Label(
+                "Seret untuk mengubah urutan",
+            )]);
+
             let drag = gtk::DragSource::new();
             drag.set_actions(gdk::DragAction::MOVE);
 
@@ -542,7 +562,8 @@ impl NowPlayingPanel {
                 Some(gdk::ContentProvider::for_value(&track_id.to_value()))
             });
 
-            row_box.add_controller(drag);
+            handle.add_controller(drag);
+            row_box.append(&handle);
 
             let state = Rc::clone(&self.state);
             let track_for_click = track.clone();
